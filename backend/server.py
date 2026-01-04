@@ -15,15 +15,24 @@ import jwt
 from bson import ObjectId
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+
+if (ROOT_DIR / ".env").exists():
+    load_dotenv(ROOT_DIR / ".env")
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+MONGO_URL = os.environ.get("MONGO_URL")
+DB_NAME = os.environ.get("DB_NAME", "expense_tracker")
+JWT_SECRET = os.environ.get("JWT_SECRET")
 
-# JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'expense-tracker-secret-key-2024')
+if not MONGO_URL:
+    raise RuntimeError("MONGO_URL not set")
+
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET not set")
+
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
+
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
@@ -260,6 +269,17 @@ async def update_settings(settings: UserSettingsUpdate, user = Depends(get_curre
         currency=updated_user.get('currency', 'USD'),
         created_at=updated_user['created_at']
     )
+    
+@api_router.delete("/auth/delete-account")
+async def delete_account(user=Depends(get_current_user)):
+    user_id = str(user["_id"])
+
+    # Delete user data
+    await db.expenses.delete_many({"user_id": user_id})
+    await db.budgets.delete_many({"user_id": user_id})
+    await db.users.delete_one({"_id": user["_id"]})
+
+    return {"message": "Account and all data deleted successfully"}
 
 # ===================== EXPENSE ROUTES =====================
 
@@ -586,7 +606,11 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8081",
+        "http://localhost:19006",
+        "exp://127.0.0.1:*",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
