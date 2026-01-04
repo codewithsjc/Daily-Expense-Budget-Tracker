@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, setAuthToken } from '../services/api';
 
-// Platform-specific storage
+// Platform-specific storage (AsyncStorage for native, localStorage for web)
 const storage = {
   async getItem(key: string): Promise<string | null> {
     try {
@@ -69,6 +69,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadStoredAuth();
   }, []);
 
+  // Set up 401 interceptor to auto-logout
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response?.status === 401 && token) {
+          console.log('401 received, logging out...');
+          await logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, [token]);
+
   const loadStoredAuth = async () => {
     try {
       const storedToken = await storage.getItem('auth_token');
@@ -76,23 +94,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
         setAuthToken(storedToken);
         
-        // Verify token is still valid
         try {
+          // Parse stored user first
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          
+          // Verify token is still valid with the server
           const response = await api.get('/auth/me');
           setUser(response.data);
-        } catch (error) {
-          // Token invalid, clear auth
-          await logout();
+          await storage.setItem('user_data', JSON.stringify(response.data));
+        } catch (error: any) {
+          console.log('Token validation failed:', error.message);
+          // Token invalid or server error, clear auth
+          await clearAuth();
         }
       }
     } catch (error) {
       console.error('Error loading auth:', error);
+      await clearAuth();
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const clearAuth = async () => {
+    await storage.removeItem('auth_token');
+    await storage.removeItem('user_data');
+    setToken(null);
+    setUser(null);
+    setAuthToken(null);
   };
 
   const login = async (email: string, password: string) => {
@@ -120,11 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await storage.removeItem('auth_token');
-    await storage.removeItem('user_data');
-    setToken(null);
-    setUser(null);
-    setAuthToken(null);
+    await clearAuth();
   };
 
   const updateUser = (updates: Partial<User>) => {
