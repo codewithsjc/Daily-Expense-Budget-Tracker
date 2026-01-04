@@ -42,7 +42,13 @@ JWT_EXPIRATION_HOURS = 24 * 7
 
 # ===================== APP =====================
 
-app = FastAPI(title="Expense & Budget Tracker API")
+app = FastAPI(
+    title="Expense & Budget Tracker API",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
+)
+
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
