@@ -71,8 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadStoredAuth = async () => {
     try {
-      const storedToken = await SecureStore.getItemAsync('auth_token');
-      const storedUser = await SecureStore.getItemAsync('user_data');
+      const storedToken = await storage.getItem('auth_token');
+      const storedUser = await storage.getItem('user_data');
       
       if (storedToken && storedUser) {
         setToken(storedToken);
@@ -99,8 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post('/auth/login', { email, password });
     const { access_token, user: userData } = response.data;
     
-    await SecureStore.setItemAsync('auth_token', access_token);
-    await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
+    await storage.setItem('auth_token', access_token);
+    await storage.setItem('user_data', JSON.stringify(userData));
     
     setToken(access_token);
     setUser(userData);
@@ -111,8 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post('/auth/register', { email, password, name });
     const { access_token, user: userData } = response.data;
     
-    await SecureStore.setItemAsync('auth_token', access_token);
-    await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
+    await storage.setItem('auth_token', access_token);
+    await storage.setItem('user_data', JSON.stringify(userData));
     
     setToken(access_token);
     setUser(userData);
@@ -120,8 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync('auth_token');
-    await SecureStore.deleteItemAsync('user_data');
+    await storage.removeItem('auth_token');
+    await storage.removeItem('user_data');
     setToken(null);
     setUser(null);
     setAuthToken(null);
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
-      SecureStore.setItemAsync('user_data', JSON.stringify(updatedUser));
+      storage.setItem('user_data', JSON.stringify(updatedUser));
     }
   };
 
