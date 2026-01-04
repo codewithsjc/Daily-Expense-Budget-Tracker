@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
-import { PieChart, BarChart } from 'react-native-gifted-charts';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
@@ -43,6 +42,106 @@ interface SummaryData {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Custom Pie Chart Component
+function SimplePieChart({ data, total, currencySymbol, theme }: { 
+  data: CategoryData[]; 
+  total: number;
+  currencySymbol: string;
+  theme: any;
+}) {
+  const size = 200;
+  const strokeWidth = 30;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+  
+  let currentOffset = 0;
+
+  return (
+    <View style={styles.pieContainer}>
+      <View style={{ width: size, height: size, position: 'relative' }}>
+        <View style={[styles.pieCenter, { top: center - 30, left: center - 50 }]}>
+          <Text style={[styles.pieCenterValue, { color: theme.text }]}>
+            {currencySymbol}{total.toFixed(0)}
+          </Text>
+          <Text style={[styles.pieCenterLabel, { color: theme.textSecondary }]}>
+            Total
+          </Text>
+        </View>
+        {data.map((item, index) => {
+          const strokeDasharray = `${(item.percentage / 100) * circumference} ${circumference}`;
+          const rotation = (currentOffset / 100) * 360 - 90;
+          currentOffset += item.percentage;
+          
+          return (
+            <View
+              key={item.category}
+              style={{
+                position: 'absolute',
+                width: size,
+                height: size,
+                transform: [{ rotate: `${rotation}deg` }],
+              }}
+            >
+              <View
+                style={{
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                  borderWidth: strokeWidth,
+                  borderColor: 'transparent',
+                  borderTopColor: getCategoryColor(item.category),
+                  borderRightColor: item.percentage > 25 ? getCategoryColor(item.category) : 'transparent',
+                  borderBottomColor: item.percentage > 50 ? getCategoryColor(item.category) : 'transparent',
+                  borderLeftColor: item.percentage > 75 ? getCategoryColor(item.category) : 'transparent',
+                }}
+              />
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Simple Bar Chart Component
+function SimpleBarChart({ data, theme, currencySymbol }: { 
+  data: DailyData[]; 
+  theme: any;
+  currencySymbol: string;
+}) {
+  if (data.length === 0) return null;
+  
+  const maxValue = Math.max(...data.map(d => d.amount)) * 1.2 || 100;
+  const barWidth = Math.min(24, (screenWidth - 80) / data.length - 4);
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.barChartContainer}>
+        <View style={styles.barsContainer}>
+          {data.map((item, index) => (
+            <View key={item.day} style={styles.barWrapper}>
+              <View style={[styles.barBackground, { backgroundColor: theme.surfaceVariant }]}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      backgroundColor: theme.primary,
+                      height: `${(item.amount / maxValue) * 100}%`,
+                      width: barWidth,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{item.day}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
 
 export default function AnalyticsScreen() {
   const { theme } = useTheme();
@@ -79,19 +178,6 @@ export default function AnalyticsScreen() {
     newDate.setMonth(newDate.getMonth() + delta);
     setSelectedMonth(newDate);
   };
-
-  const pieData = summary?.category_data?.map((item) => ({
-    value: item.amount,
-    color: getCategoryColor(item.category),
-    text: `${item.percentage}%`,
-    label: item.category,
-  })) || [];
-
-  const barData = summary?.daily_data?.map((item) => ({
-    value: item.amount,
-    label: item.day.toString(),
-    frontColor: theme.primary,
-  })) || [];
 
   if (loading) {
     return (
@@ -166,62 +252,44 @@ export default function AnalyticsScreen() {
               </View>
             )}
 
-            {/* Pie Chart Section */}
+            {/* Category Breakdown */}
             <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
               <Text style={[styles.chartTitle, { color: theme.text }]}>Spending by Category</Text>
-              <View style={styles.pieContainer}>
-                <PieChart
-                  data={pieData}
-                  donut
-                  radius={100}
-                  innerRadius={60}
-                  centerLabelComponent={() => (
-                    <View style={styles.pieCenter}>
-                      <Text style={[styles.pieCenterValue, { color: theme.text }]}>
-                        {currencySymbol}{summary?.total_spent.toFixed(0)}
-                      </Text>
-                      <Text style={[styles.pieCenterLabel, { color: theme.textSecondary }]}>
-                        Total
+              
+              {/* Category List with Progress Bars */}
+              <View style={styles.categoryList}>
+                {summary?.category_data?.map((item) => (
+                  <View key={item.category} style={styles.categoryItem}>
+                    <View style={styles.categoryHeader}>
+                      <View style={styles.categoryInfo}>
+                        <View style={[styles.categoryDot, { backgroundColor: getCategoryColor(item.category) }]} />
+                        <Text style={[styles.categoryName, { color: theme.text }]}>{item.category}</Text>
+                      </View>
+                      <Text style={[styles.categoryAmount, { color: theme.text }]}>
+                        {currencySymbol}{item.amount.toFixed(0)} ({item.percentage}%)
                       </Text>
                     </View>
-                  )}
-                />
-              </View>
-              {/* Legend */}
-              <View style={styles.legend}>
-                {summary?.category_data?.map((item) => (
-                  <View key={item.category} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: getCategoryColor(item.category) }]} />
-                    <Text style={[styles.legendText, { color: theme.text }]}>{item.category}</Text>
-                    <Text style={[styles.legendAmount, { color: theme.textSecondary }]}>
-                      {currencySymbol}{item.amount.toFixed(0)} ({item.percentage}%)
-                    </Text>
+                    <View style={[styles.progressBar, { backgroundColor: theme.surfaceVariant }]}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${item.percentage}%`,
+                            backgroundColor: getCategoryColor(item.category),
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
                 ))}
               </View>
             </View>
 
-            {/* Bar Chart Section */}
-            {barData.length > 0 && (
+            {/* Daily Spending */}
+            {summary?.daily_data && summary.daily_data.length > 0 && (
               <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
                 <Text style={[styles.chartTitle, { color: theme.text }]}>Daily Spending</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <BarChart
-                    data={barData}
-                    barWidth={24}
-                    spacing={12}
-                    roundedTop
-                    xAxisThickness={1}
-                    yAxisThickness={0}
-                    xAxisColor={theme.border}
-                    yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-                    xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-                    noOfSections={4}
-                    maxValue={Math.max(...barData.map(d => d.value)) * 1.2 || 100}
-                    height={180}
-                    width={Math.max(barData.length * 40, screenWidth - 80)}
-                  />
-                </ScrollView>
+                <SimpleBarChart data={summary.daily_data} theme={theme} currencySymbol={currencySymbol} />
               </View>
             )}
 
@@ -326,6 +394,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   pieCenter: {
+    position: 'absolute',
+    width: 100,
     alignItems: 'center',
   },
   pieCenterValue: {
@@ -335,26 +405,69 @@ const styles = StyleSheet.create({
   pieCenterLabel: {
     fontSize: 12,
   },
-  legend: {
-    gap: 12,
+  categoryList: {
+    gap: 16,
   },
-  legendItem: {
+  categoryItem: {
+    gap: 8,
+  },
+  categoryHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  legendDot: {
+  categoryInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginRight: 12,
   },
-  legendText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  legendAmount: {
+  categoryName: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  categoryAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  barChartContainer: {
+    paddingVertical: 16,
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 150,
+    gap: 8,
+  },
+  barWrapper: {
+    alignItems: 'center',
+  },
+  barBackground: {
+    height: 120,
+    width: 24,
+    borderRadius: 4,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  bar: {
+    borderRadius: 4,
+  },
+  barLabel: {
+    fontSize: 10,
+    marginTop: 4,
   },
   adPlaceholder: {
     flexDirection: 'row',
