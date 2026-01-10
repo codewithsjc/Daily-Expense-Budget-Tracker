@@ -1,43 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, setAuthToken } from '../services/api';
-
-// Platform-specific storage (AsyncStorage for native, localStorage for web)
-const storage = {
-  async getItem(key: string): Promise<string | null> {
-    try {
-      if (Platform.OS === 'web') {
-        return localStorage.getItem(key);
-      }
-      return await AsyncStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  async setItem(key: string, value: string): Promise<void> {
-    try {
-      if (Platform.OS === 'web') {
-        localStorage.setItem(key, value);
-      } else {
-        await AsyncStorage.setItem(key, value);
-      }
-    } catch (e) {
-      console.error('Storage setItem error:', e);
-    }
-  },
-  async removeItem(key: string): Promise<void> {
-    try {
-      if (Platform.OS === 'web') {
-        localStorage.removeItem(key);
-      } else {
-        await AsyncStorage.removeItem(key);
-      }
-    } catch (e) {
-      console.error('Storage removeItem error:', e);
-    }
-  },
-};
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
+import { api } from "../services/api";
+import { storage } from "../utils/storage";
 
 interface User {
   id: string;
@@ -55,7 +25,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => void;
+  updateUser: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -65,18 +35,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadStoredAuth();
+  const clearAuth = useCallback(async () => {
+    await storage.removeItem("access_token");
+    await storage.removeItem("user_data");
+    setToken(null);
+    setUser(null);
+    delete api.defaults.headers.common.Authorization;
   }, []);
 
-  // Set up 401 interceptor to auto-logout
+  const loadStoredAuth = useCallback(async () => {
+    try {
+      const storedToken = await storage.getItem("access_token");
+      const storedUser = await storage.getItem("user_data");
+
+      if (!storedToken || !storedUser) {
+        return;
+      }
+
+      api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+
+      // Validate token with backend
+      const response = await api.get("/auth/me");
+      setUser(response.data);
+      await storage.setItem("user_data", JSON.stringify(response.data));
+    } catch {
+      await clearAuth();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clearAuth]);
+
+  useEffect(() => {
+    loadStoredAuth();
+  }, [loadStoredAuth]);
+
+  // Auto logout on 401
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error) => {
         if (error.response?.status === 401 && token) {
-          console.log('401 received, logging out...');
-          await logout();
+          await clearAuth();
         }
         return Promise.reject(error);
       }
@@ -85,82 +86,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       api.interceptors.response.eject(interceptor);
     };
-  }, [token]);
-
-  const loadStoredAuth = async () => {
-    try {
-      const storedToken = await storage.getItem('auth_token');
-      const storedUser = await storage.getItem('user_data');
-      
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setAuthToken(storedToken);
-        
-        try {
-          // Parse stored user first
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          
-          // Verify token is still valid with the server
-          const response = await api.get('/auth/me');
-          setUser(response.data);
-          await storage.setItem('user_data', JSON.stringify(response.data));
-        } catch (error: any) {
-          console.log('Token validation failed:', error.message);
-          // Token invalid or server error, clear auth
-          await clearAuth();
-        }
-      }
-    } catch (error) {
-      console.error('Error loading auth:', error);
-      await clearAuth();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const clearAuth = async () => {
-    await storage.removeItem('auth_token');
-    await storage.removeItem('user_data');
-    setToken(null);
-    setUser(null);
-    setAuthToken(null);
-  };
+  }, [token, clearAuth]);
 
   const login = async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post("/auth/login", { email, password });
     const { access_token, user: userData } = response.data;
-    
-    await storage.setItem('auth_token', access_token);
-    await storage.setItem('user_data', JSON.stringify(userData));
-    
+
+    await storage.setItem("access_token", access_token);
+    await storage.setItem("user_data", JSON.stringify(userData));
+
+    api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
     setToken(access_token);
     setUser(userData);
-    setAuthToken(access_token);
   };
 
   const register = async (email: string, password: string, name: string) => {
-    const response = await api.post('/auth/register', { email, password, name });
+    const response = await api.post("/auth/register", {
+      email,
+      password,
+      name,
+    });
+
     const { access_token, user: userData } = response.data;
-    
-    await storage.setItem('auth_token', access_token);
-    await storage.setItem('user_data', JSON.stringify(userData));
-    
+
+    await storage.setItem("access_token", access_token);
+    await storage.setItem("user_data", JSON.stringify(userData));
+
+    api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
     setToken(access_token);
     setUser(userData);
-    setAuthToken(access_token);
   };
 
   const logout = async () => {
     await clearAuth();
   };
 
-  const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      storage.setItem('user_data', JSON.stringify(updatedUser));
-    }
+  const updateUser = async (updates: Partial<User>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...updates };
+    setUser(updatedUser);
+    await storage.setItem("user_data", JSON.stringify(updatedUser));
   };
 
   return (
@@ -184,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,63 +8,74 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '../../src/contexts/ThemeContext';
-import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+
+import { useTheme } from "../../src/contexts/ThemeContext";
+import { useAuth } from "../../src/contexts/AuthContext";
+import { Button } from "../../src/components/Button";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
-    
+
     if (!email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Enter a valid email';
+      newErrors.email = "Enter a valid email";
     }
-    
+
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async () => {
-    if (!validate()) return;
+    if (!validate() || loading) return;
 
     setLoading(true);
+    setApiError(null);
+
     try {
       await login(email.trim().toLowerCase(), password);
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Invalid email or password');
+      const message =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Invalid email or password";
+      setApiError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
       >
         <ScrollView
@@ -72,24 +83,44 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* HEADER */}
           <View style={styles.header}>
-            <View style={[styles.iconContainer, { backgroundColor: theme.primary }]}>
-              <MaterialIcons name="account-balance-wallet" size={40} color="#fff" />
+            <View
+              style={[styles.iconContainer, { backgroundColor: theme.primary }]}
+            >
+              <MaterialIcons
+                name="account-balance-wallet"
+                size={40}
+                color="#fff"
+              />
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>Welcome Back</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Welcome Back
+            </Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Sign in to continue tracking your expenses
             </Text>
           </View>
 
+          {/* FORM */}
           <View style={styles.form}>
+            {/* EMAIL */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.email ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="email" size={20} color={theme.textTertiary} />
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.email ? theme.error : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="email"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Enter your email"
@@ -97,23 +128,41 @@ export default function LoginScreen() {
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
-                    if (errors.email) setErrors({ ...errors, email: undefined });
+                    setApiError(null);
+                    if (errors.email)
+                      setErrors({ ...errors, email: undefined });
                   }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
                 />
               </View>
-              {errors.email && <Text style={[styles.errorText, { color: theme.error }]}>{errors.email}</Text>}
+              {errors.email && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.email}
+                </Text>
+              )}
             </View>
 
+            {/* PASSWORD */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.password ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="lock" size={20} color={theme.textTertiary} />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Password
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.password ? theme.error : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="lock"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Enter your password"
@@ -121,40 +170,77 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
-                    if (errors.password) setErrors({ ...errors, password: undefined });
+                    setApiError(null);
+                    if (errors.password) {
+                      setErrors({ ...errors, password: undefined });
+                    }
                   }}
                   secureTextEntry={!showPassword}
                   autoComplete="password"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                >
                   <MaterialIcons
-                    name={showPassword ? 'visibility' : 'visibility-off'}
+                    name={showPassword ? "visibility" : "visibility-off"}
                     size={20}
                     color={theme.textTertiary}
                   />
                 </TouchableOpacity>
               </View>
-              {errors.password && <Text style={[styles.errorText, { color: theme.error }]}>{errors.password}</Text>}
+              {errors.password && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.password}
+                </Text>
+              )}
             </View>
 
+            {/* API ERROR */}
+            {apiError && (
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: theme.error, marginBottom: 12, textAlign: "center" },
+                ]}
+              >
+                {apiError}
+              </Text>
+            )}
+
+            {/* FORGOT PASSWORD */}
             <TouchableOpacity
               style={styles.forgotPassword}
-              onPress={() => router.push('/auth/forgot-password')}
+              onPress={() => router.push("/auth/forgot-password")}
+              disabled={loading}
             >
-              <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>
+              <Text
+                style={[styles.forgotPasswordText, { color: theme.primary }]}
+              >
                 Forgot Password?
               </Text>
             </TouchableOpacity>
 
-            <Button title="Sign In" onPress={handleLogin} loading={loading} />
+            {/* LOGIN BUTTON */}
+            <Button
+              title="Sign In"
+              onPress={handleLogin}
+              loading={loading}
+              disabled={loading}
+            />
           </View>
 
+          {/* FOOTER */}
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{" "}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/signup')}>
-              <Text style={[styles.signupText, { color: theme.primary }]}>Sign Up</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/auth/signup")}
+              disabled={loading}
+            >
+              <Text style={[styles.signupText, { color: theme.primary }]}>
+                Sign Up
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -163,38 +249,36 @@ export default function LoginScreen() {
   );
 }
 
+/* ===================== STYLES ===================== */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
   },
   iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
     marginBottom: 32,
@@ -204,12 +288,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -225,23 +309,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   forgotPassword: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginBottom: 24,
   },
   forgotPasswordText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   footerText: {
     fontSize: 14,
   },
   signupText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

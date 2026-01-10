@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,75 +8,87 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '../../src/contexts/ThemeContext';
-import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+
+import { useTheme } from "../../src/contexts/ThemeContext";
+import { useAuth } from "../../src/contexts/AuthContext";
+import { Button } from "../../src/components/Button";
 
 export default function SignupScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { register } = useAuth();
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; confirmPassword?: string }>({});
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
 
   const validate = () => {
     const newErrors: typeof errors = {};
-    
-    if (!name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
+
+    if (!name.trim()) newErrors.name = "Name is required";
+
     if (!email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Enter a valid email';
+      newErrors.email = "Enter a valid email";
     }
-    
+
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
-    
+
     if (!confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
+      newErrors.confirmPassword = "Please confirm your password";
     } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = "Passwords do not match";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSignup = async () => {
-    if (!validate()) return;
+    if (!validate() || loading) return;
 
     setLoading(true);
+    setApiError(null);
+
     try {
       await register(email.trim().toLowerCase(), password, name.trim());
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     } catch (error: any) {
-      Alert.alert('Signup Failed', error.message || 'Could not create account');
+      const message =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Could not create account";
+      setApiError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
       >
         <ScrollView
@@ -84,24 +96,42 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* HEADER */}
           <View style={styles.header}>
-            <View style={[styles.iconContainer, { backgroundColor: theme.primary }]}>
+            <View
+              style={[styles.iconContainer, { backgroundColor: theme.primary }]}
+            >
               <MaterialIcons name="person-add" size={40} color="#fff" />
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Create Account
+            </Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Start managing your expenses today
             </Text>
           </View>
 
+          {/* FORM */}
           <View style={styles.form}>
+            {/* NAME */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.text }]}>Full Name</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.name ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="person" size={20} color={theme.textTertiary} />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Full Name
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.name ? theme.error : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="person"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Enter your name"
@@ -109,22 +139,37 @@ export default function SignupScreen() {
                   value={name}
                   onChangeText={(text) => {
                     setName(text);
+                    setApiError(null);
                     if (errors.name) setErrors({ ...errors, name: undefined });
                   }}
                   autoCapitalize="words"
                   autoComplete="name"
                 />
               </View>
-              {errors.name && <Text style={[styles.errorText, { color: theme.error }]}>{errors.name}</Text>}
+              {errors.name && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.name}
+                </Text>
+              )}
             </View>
 
+            {/* EMAIL */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.email ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="email" size={20} color={theme.textTertiary} />
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.email ? theme.error : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="email"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Enter your email"
@@ -132,23 +177,41 @@ export default function SignupScreen() {
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
-                    if (errors.email) setErrors({ ...errors, email: undefined });
+                    setApiError(null);
+                    if (errors.email)
+                      setErrors({ ...errors, email: undefined });
                   }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
                 />
               </View>
-              {errors.email && <Text style={[styles.errorText, { color: theme.error }]}>{errors.email}</Text>}
+              {errors.email && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.email}
+                </Text>
+              )}
             </View>
 
+            {/* PASSWORD */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.password ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="lock" size={20} color={theme.textTertiary} />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Password
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.password ? theme.error : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="lock"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Create a password"
@@ -156,29 +219,51 @@ export default function SignupScreen() {
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
-                    if (errors.password) setErrors({ ...errors, password: undefined });
+                    setApiError(null);
+                    if (errors.password) {
+                      setErrors({ ...errors, password: undefined });
+                    }
                   }}
                   secureTextEntry={!showPassword}
-                  autoComplete="password-new"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                >
                   <MaterialIcons
-                    name={showPassword ? 'visibility' : 'visibility-off'}
+                    name={showPassword ? "visibility" : "visibility-off"}
                     size={20}
                     color={theme.textTertiary}
                   />
                 </TouchableOpacity>
               </View>
-              {errors.password && <Text style={[styles.errorText, { color: theme.error }]}>{errors.password}</Text>}
+              {errors.password && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.password}
+                </Text>
+              )}
             </View>
 
+            {/* CONFIRM PASSWORD */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.text }]}>Confirm Password</Text>
-              <View style={[
-                styles.inputContainer,
-                { backgroundColor: theme.surface, borderColor: errors.confirmPassword ? theme.error : theme.border }
-              ]}>
-                <MaterialIcons name="lock-outline" size={20} color={theme.textTertiary} />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Confirm Password
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: errors.confirmPassword
+                      ? theme.error
+                      : theme.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="lock-outline"
+                  size={20}
+                  color={theme.textTertiary}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Confirm your password"
@@ -186,24 +271,54 @@ export default function SignupScreen() {
                   value={confirmPassword}
                   onChangeText={(text) => {
                     setConfirmPassword(text);
-                    if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: undefined });
+                    setApiError(null);
+                    if (errors.confirmPassword) {
+                      setErrors({ ...errors, confirmPassword: undefined });
+                    }
                   }}
                   secureTextEntry={!showPassword}
-                  autoComplete="password-new"
                 />
               </View>
-              {errors.confirmPassword && <Text style={[styles.errorText, { color: theme.error }]}>{errors.confirmPassword}</Text>}
+              {errors.confirmPassword && (
+                <Text style={[styles.errorText, { color: theme.error }]}>
+                  {errors.confirmPassword}
+                </Text>
+              )}
             </View>
 
-            <Button title="Create Account" onPress={handleSignup} loading={loading} style={{ marginTop: 8 }} />
+            {/* API ERROR */}
+            {apiError && (
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: theme.error, textAlign: "center", marginBottom: 12 },
+                ]}
+              >
+                {apiError}
+              </Text>
+            )}
+
+            {/* BUTTON */}
+            <Button
+              title="Create Account"
+              onPress={handleSignup}
+              loading={loading}
+              disabled={loading}
+            />
           </View>
 
+          {/* FOOTER */}
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-              Already have an account?{' '}
+              Already have an account?{" "}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/login')}>
-              <Text style={[styles.loginText, { color: theme.primary }]}>Sign In</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/auth/login")}
+              disabled={loading}
+            >
+              <Text style={[styles.loginText, { color: theme.primary }]}>
+                Sign In
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -212,38 +327,36 @@ export default function SignupScreen() {
   );
 }
 
+/* ===================== STYLES ===================== */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
     marginBottom: 24,
@@ -253,12 +366,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -274,15 +387,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   footerText: {
     fontSize: 14,
   },
   loginText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
